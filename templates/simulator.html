@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RUMBU Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+  .wrap { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
+  .phone { background: #22251f; border-radius: 34px; padding: 22px 16px 26px; box-shadow: 0 12px 30px rgba(0,0,0,.25); }
+  .screen { background: #c8d3b4; border-radius: 10px; min-height: 260px; padding: 14px; font: 14px/1.5 "IBM Plex Mono", monospace; color: #17200f; white-space: pre-wrap; }
+  .screen .hint { color: #4d5a3c; }
+  .entry { display: flex; gap: 6px; margin-top: 12px; }
+  .entry input { flex: 1; font-family: "IBM Plex Mono", monospace; }
+  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .keys button { background: #3a3e34; padding: 10px; border-radius: 12px; font-size: 17px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .call { background: #3f8a46 !important; } .hang { background: #a8432f !important; }
+  .msg { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+  .msg .meta { color: var(--muted); font-size: 11px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>RUMBU <span>Feature-phone simulator</span></h1>
+  <nav><a href="/">Dashboard</a><a href="/simulator">Phone simulator</a></nav>
+</header>
+<main>
+  <p class="sub" style="color:var(--muted)">Works the same as dialling the real Africa's Talking USSD code. Try a new number to see registration.</p>
+  <div class="wrap">
+    <div>
+      <label class="sub">Phone number</label>
+      <input id="phone" value="+2348031234567" style="width:100%;margin:4px 0 12px">
+      <div class="phone">
+        <div class="screen" id="screen"><span class="hint">Press Call to dial *384*RUMBU#</span></div>
+        <div class="entry"><input id="reply" placeholder="Type reply" autocomplete="off"><button id="send">Send</button></div>
+        <div class="keys" id="keys"></div>
+        <div class="row2"><button class="call" id="call">Call</button><button class="hang" id="hang">End</button></div>
+      </div>
+    </div>
+    <div>
+      <section class="card">
+        <h2>Send an SMS to RUMBU</h2>
+        <p class="sub">Try: <code>FARASHI MASARA</code>, <code>MATSALA masarata ta jike da ruwa</code>, <code>BUY MAIZE 20 50000</code></p>
+        <form class="inline" id="smsform"><input id="smstext" placeholder="Message" style="flex:1;min-width:220px"><button>Send SMS</button></form>
+      </section>
+      <section class="card" style="margin-top:16px">
+        <h2>Inbox on this phone</h2>
+        <p class="sub">SMS and airtime this number received.</p>
+        <div id="inbox"></div>
+      </section>
+    </div>
+  </div>
+</main>
+<script>
+let session = null, path = [];
+const $ = id => document.getElementById(id);
+const screen = $('screen'), reply = $('reply');
+
+async function ussd(text) {
+  const body = new URLSearchParams({ sessionId: session, serviceCode: '*384*7867#', phoneNumber: $('phone').value, text });
+  const r = await fetch('/ussd', { method: 'POST', body });
+  const t = await r.text();
+  screen.textContent = t.slice(4);
+  if (t.startsWith('END')) { session = null; path = []; screen.textContent += '\n\n— session ended —'; }
+  loadInbox();
+}
+function dial() { session = 'sim-' + Date.now(); path = []; ussd(''); reply.focus(); }
+function send() {
+  if (!session || !reply.value.trim()) return;
+  path.push(reply.value.trim()); reply.value = ''; ussd(path.join('*'));
+}
+$('call').onclick = dial;
+$('hang').onclick = () => { session = null; path = []; screen.innerHTML = '<span class="hint">Call ended.</span>'; };
+$('send').onclick = send;
+reply.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+['1','2','3','4','5','6','7','8','9','*','0','#'].forEach(k => {
+  const b = document.createElement('button'); b.textContent = k;
+  b.onclick = () => { reply.value += k; reply.focus(); }; $('keys').appendChild(b);
+});
+
+$('smsform').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('smstext').value.trim(); if (!text) return;
+  await fetch('/sms/incoming', { method: 'POST', body: new URLSearchParams({ from: $('phone').value, to: '7867', text }) });
+  $('smstext').value = ''; loadInbox();
+};
+
+async function loadInbox() {
+  const r = await fetch('/api/messages?phone=' + encodeURIComponent($('phone').value));
+  const msgs = await r.json();
+  $('inbox').innerHTML = msgs.map(m => `<div class="msg"><span class="tag ${m.channel === 'airtime' ? 'airtime' : ''}">${m.channel}</span>
+    <div style="white-space:pre-wrap">${m.body.replace(/</g, '&lt;')}</div><div class="meta">${m.created_at.replace('T',' ').slice(0,19)} · ${m.status}</div></div>`).join('')
+    || '<p class="sub" style="color:var(--muted)">No messages yet.</p>';
+}
+$('phone').onchange = loadInbox;
+loadInbox(); setInterval(loadInbox, 4000);
+</script>
+</body>
+</html>
