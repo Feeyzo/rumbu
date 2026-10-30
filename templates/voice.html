@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Voice prompts · RUMBU{% endblock %}
+{% block head %}
+<style>
+  .prompt { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); margin-bottom: 12px; }
+  .prompt > header { grid-column: 1 / -1; padding: 12px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .prompt > header h2 { font-size: 17px; }
+  .prompt > header code { color: var(--muted); font-size: 13px; }
+  .side { padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .side + .side { border-left: 1px solid var(--line); }
+  .side .script { font-size: 17px; line-height: 1.5; margin: 0; }
+  .side.en .script { font-size: 15px; color: var(--muted); }
+  .side .lang { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: auto; }
+  .controls audio { flex: 1 1 200px; }
+  .btn.rec { background: var(--red); }
+  .btn.rec.on { animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .6; } }
+  @media (prefers-reduced-motion: reduce) { .btn.rec.on { animation: none; } }
+  .state { font-size: 13px; }
+  .progress { height: 10px; background: var(--indigo-soft); border-radius: 5px; overflow: hidden; margin-top: 10px; }
+  .progress i { display: block; height: 100%; background: var(--leaf); }
+  ol.tips { margin: 8px 0 0; padding-left: 20px; }
+  @media (max-width: 760px) { .prompt { grid-template-columns: 1fr; } .side + .side { border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Voice prompts</h1>
+    <p>Africa's Talking can't speak Hausa, so farmers who call RUMBU hear these recordings. Read each Hausa script aloud in a calm, clear voice.</p>
+  </div>
+  <a class="btn ghost" href="{{ url_for('admin_voice_zip') }}">Download all recordings</a>
+</div>
+
+<div class="cols" style="margin-bottom:18px">
+  <section class="panel">
+    <h2>{{ done }} of {{ rows | length }} Hausa prompts recorded</h2>
+    <div class="progress"><i style="width: {{ (done / rows|length * 100) | round }}%"></i></div>
+    <ol class="tips">
+      <li>Find a quiet room and hold the laptop or phone about a hand's width from your mouth.</li>
+      <li>Press <b>Record</b>, read the script, then press <b>Stop</b>. Listen back and record again if needed. It saves automatically.</li>
+      <li>Prompts that aren't recorded are read out by a computer voice in English, so record all the Hausa ones before the demo.</li>
+    </ol>
+  </section>
+  <section class="panel quiet">
+    <h2>Keep them safe</h2>
+    <p class="sub" style="margin-bottom:0">On Render's free plan, recordings are wiped when the app redeploys. When you're happy with them, download all recordings, unzip into the project and push to GitHub, so they're part of the code.</p>
+  </section>
+</div>
+
+{% for r in rows %}
+<article class="prompt" id="p-{{ r.key }}">
+  <header><h2>{{ r.label }}</h2><code>{{ r.key }}</code></header>
+  {% for lang in ('ha', 'en') %}
+  {% set a = r[lang] %}
+  <div class="side {{ lang }}" data-lang="{{ lang }}" data-key="{{ r.key }}">
+    <span class="lang">{{ 'Hausa' if lang == 'ha' else 'English (for farmers who chose English)' }}</span>
+    <p class="script" lang="{{ lang }}">{{ a.text }}</p>
+    <div class="controls">
+      <button type="button" class="btn sm rec">Record</button>
+      <audio controls preload="none" {% if a.file %}src="{{ url_for('static', filename='audio/' ~ a.file) }}?v={{ a.v }}"{% else %}hidden{% endif %}></audio>
+      <span class="state">{% if a.file %}<span class="tag leaf">Recorded</span>{% else %}<span class="tag {{ 'red' if lang == 'ha' else '' }}">Not recorded</span>{% endif %}</span>
+      <button type="button" class="btn sm ghost del" {% if not a.file %}hidden{% endif %}>Delete</button>
+    </div>
+  </div>
+  {% endfor %}
+</article>
+{% endfor %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='recorder.js') }}"></script>
+<script>
+const CSRF = {{ csrf | tojson }};
+let active = null;
+document.querySelectorAll('.side').forEach(side => {
+  const rec = side.querySelector('.rec'), audio = side.querySelector('audio'),
+        state = side.querySelector('.state'), del = side.querySelector('.del');
+  const base = `/admin/voice/${side.dataset.lang}/${side.dataset.key}`;
+  rec.onclick = async () => {
+    if (active && active.side !== side) return;
+    if (!active) {
+      try {
+        const r = new RumbuRecorder(); await r.start();
+        active = { r, side };
+        rec.textContent = 'Stop'; rec.classList.add('on');
+        state.innerHTML = '<span class="tag red">Recording…</span>';
+      } catch (e) { state.textContent = 'Allow microphone access in your browser, then try again.'; }
+      return;
+    }
+    rec.disabled = true; rec.classList.remove('on'); state.textContent = 'Saving…';
+    try {
+      const wav = await active.r.stop();
+      const fd = new FormData(); fd.append('audio', wav, 'prompt.wav'); fd.append('csrf', CSRF);
+      const res = await fetch(base, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error();
+      const { url } = await res.json();
+      audio.src = url + '?v=' + Date.now(); audio.hidden = false; del.hidden = false;
+      state.innerHTML = '<span class="tag leaf">Saved</span>';
+    } catch (e) { state.textContent = "Couldn't save that recording. Try again."; }
+    active = null; rec.disabled = false; rec.textContent = 'Record again';
+  };
+  del.onclick = async () => {
+    const fd = new FormData(); fd.append('csrf', CSRF);
+    await fetch(base + '/delete', { method: 'POST', body: fd });
+    audio.hidden = true; audio.removeAttribute('src'); del.hidden = true; rec.textContent = 'Record';
+    state.innerHTML = '<span class="tag">Not recorded</span>';
+  };
+});
+</script>
+{% endblock %}

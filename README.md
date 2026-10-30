@@ -85,9 +85,18 @@ In **dry-run mode** nothing is sent; every SMS and airtime reward shows in the o
 
 3. Test with the AT simulator at https://simulator.africastalking.com (sandbox).
 
-### Hausa voice prompts
+### Hausa voice line
 
-AT has no Hausa text-to-speech, so the voice line plays recorded MP3s from `static/audio/` when present (`ha_welcome.mp3`, `ha_crop.mp3`, `ha_record.mp3`, `ha_recorded.mp3`, `ha_sent_sms.mp3`, `ha_invalid.mp3`). Record them in your own voices; until then it falls back to `<Say>`. Prompt scripts are in `rumbu/voice.py`.
+Farmers who can't read call the helpline: press 1 for storage advice, 2 to leave a voice note, 3 for prices (sent by SMS). Voice notes land in **Operations** marked "Needs reply" for an agronomist to listen to and answer by SMS.
+
+Africa's Talking has no Hausa text-to-speech, so every prompt is a real recording:
+
+1. Log in as admin and open **Voice prompts** (`/admin/voice`).
+2. Press **Record**, read the Hausa script, press **Stop**. It saves as a small WAV the call plays with `<Play>`.
+3. Unrecorded prompts fall back to `<Say>` with the written text.
+4. On Render's free plan files are wiped on redeploy, so **Download all recordings**, unzip into the repo (it creates `static/audio/`) and push.
+
+To demo without an Africa's Talking voice number, use **Call helpline** in the phone simulator. It runs the exact same voice XML in the browser, plays your recordings, and records a voice note from your microphone.
 
 ## USSD menu (Hausa / English)
 

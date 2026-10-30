@@ -14,7 +14,10 @@
   .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 12px; }
   .pad button { background: #2c2f35; color: #eee; border: 0; border-radius: 10px 10px 14px 14px; padding: 9px 0; font: 600 16px var(--body); cursor: pointer; }
   .pad button:hover { background: #3a3e45; }
-  .callrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .callrow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .voicecall { background: var(--indigo-2); }
+  .lcd .calling { display: block; font-size: 12px; border-bottom: 1px solid rgba(26,36,16,.35); padding-bottom: 4px; margin-bottom: 8px; }
+  .lcd .rec-dot { color: #a8432f; }
   .callrow button { border: 0; border-radius: 12px; padding: 10px; font: 600 15px var(--body); color: #fff; cursor: pointer; }
   .call { background: #2f7d45; } .hang { background: var(--red); }
   .msg { border-bottom: 1px solid var(--line); padding: 10px 0; }
@@ -26,7 +29,7 @@
 <div class="page-head">
   <div>
     <h1>Phone simulator</h1>
-    <p>Works exactly like dialling {{ ussd_code }} on a real phone. Change the number to try registering as a new farmer.</p>
+    <p><b>Dial USSD</b> works exactly like dialling {{ ussd_code }}. <b>Call helpline</b> is the voice line for farmers who can't read: listen, press keys, and leave a voice note with your microphone. Change the number to try registering as a new farmer.</p>
   </div>
 </div>
 <div class="wrap">
@@ -34,10 +37,10 @@
     <div class="field"><label for="phone">This phone's number</label><input id="phone" value="+2348031234567"></div>
     <div class="handset">
       <div class="ear"></div>
-      <div class="lcd" id="screen" aria-live="polite"><span class="hint">Press Call to dial {{ ussd_code }}</span></div>
+      <div class="lcd" id="screen" aria-live="polite"><span class="hint">Press Dial USSD for the menu, or Call helpline to hear the voice line.</span></div>
       <div class="entry"><input id="reply" placeholder="Type a reply" autocomplete="off" aria-label="Reply"><button class="btn sm" id="send">Send</button></div>
       <div class="pad" id="keys"></div>
-      <div class="callrow"><button class="call" id="call">Call</button><button class="hang" id="hang">End</button></div>
+      <div class="callrow"><button class="call" id="call">Dial USSD</button><button class="voicecall" id="vcall">Call helpline</button><button class="hang" id="hang">End</button></div>
     </div>
   </div>
   <div class="stack">
@@ -55,7 +58,9 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script src="{{ url_for('static', filename='recorder.js') }}"></script>
 <script>
+const CSRF = {{ csrf | tojson }};
 let session = null, path = [];
 const $ = id => document.getElementById(id);
 const screen = $('screen'), reply = $('reply');
@@ -68,18 +73,21 @@ async function ussd(text) {
   if (t.startsWith('END')) { session = null; path = []; screen.textContent += '\n\n(session ended)'; }
   loadInbox();
 }
-function dial() { session = 'sim-' + Date.now(); path = []; ussd(''); reply.focus(); }
+function dial() { if (call) hangVoice(); session = 'sim-' + Date.now(); path = []; ussd(''); reply.focus(); }
 function send() {
   if (!session || !reply.value.trim()) return;
   path.push(reply.value.trim()); reply.value = ''; ussd(path.join('*'));
 }
 $('call').onclick = dial;
-$('hang').onclick = () => { session = null; path = []; screen.innerHTML = '<span class="hint">Call ended.</span>'; };
+$('hang').onclick = () => {
+  if (call) return hangVoice();
+  session = null; path = []; screen.innerHTML = '<span class="hint">Call ended.</span>';
+};
 $('send').onclick = send;
 reply.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
 ['1','2','3','4','5','6','7','8','9','*','0','#'].forEach(k => {
   const b = document.createElement('button'); b.type = 'button'; b.textContent = k;
-  b.onclick = () => { reply.value += k; reply.focus(); }; $('keys').appendChild(b);
+  b.onclick = () => { if (call) return voiceKey(k); reply.value += k; reply.focus(); }; $('keys').appendChild(b);
 });
 $('smsform').onsubmit = async e => {
   e.preventDefault();
@@ -93,6 +101,114 @@ async function loadInbox() {
     <div style="white-space:pre-wrap">${esc(m.body)}</div><div class="meta">${esc(m.created_at.replace('T',' ').slice(0,19))}, ${esc(m.status)}</div></div>`).join('')
     || '<p class="empty">No messages yet. Dial in and register.</p>';
 }
+// ---------------- Voice helpline (plays the same XML Africa's Talking would) ----------------
+let call = null, player = null;
+const pathOf = u => { const x = new URL(u, location.href); return x.pathname + x.search; };
+function voiceScreen(html) { screen.innerHTML = `<span class="calling">On call: RUMBU helpline</span>${html}`; }
+
+async function voicePost(url, extra = {}) {
+  const body = new URLSearchParams({ sessionId: call.id, callerNumber: $('phone').value, isActive: '1', ...extra });
+  const xml = await (await fetch(pathOf(url), { method: 'POST', body })).text();
+  if (call) await runXml(xml);
+}
+
+function playNode(n) {
+  return new Promise(done => {
+    if (!call) return done();
+    if (n.tagName === 'Play') {
+      voiceScreen('<span class="hint">Playing recorded prompt…</span>');
+      player = new Audio(pathOf(n.getAttribute('url')));
+      player.onended = player.onerror = () => done();
+      player.play().catch(() => done());
+    } else {  // <Say>: not recorded yet, show the script for as long as it would take to say
+      const text = n.textContent;
+      voiceScreen(esc(text) + '\n\n<span class="hint">(Not recorded yet. Record it in Voice prompts.)</span>');
+      player = { pause: () => { clearTimeout(t); done(); } };
+      const t = setTimeout(done, Math.min(9000, 1200 + text.length * 45));
+    }
+  });
+}
+
+async function runXml(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  for (const n of [...doc.documentElement.children]) {
+    if (!call) return;
+    if (n.tagName === 'Say' || n.tagName === 'Play') await playNode(n);
+    else if (n.tagName === 'GetDigits') {
+      call.wait = { cb: n.getAttribute('callbackUrl'), num: +n.getAttribute('numDigits') || 1, finish: n.getAttribute('finishOnKey') || '#' };
+      call.digits = '';
+      for (const c of n.children) { if (!call || !call.wait) return; await playNode(c); }
+      if (call && call.wait) voiceScreen('<span class="hint">Press a key on the keypad.</span>');
+      return;
+    } else if (n.tagName === 'Record') return startVoiceNote(n);
+  }
+  if (call) await hangVoice('The helpline ended the call.');
+}
+
+function voiceKey(k) {
+  if (call.recording) { if (k === '#') stopVoiceNote(); return; }
+  if (!call.wait) return;
+  if (player) player.pause();          // pressing a key interrupts the prompt, like a real line
+  if (k !== call.wait.finish) call.digits += k;
+  if (k === call.wait.finish || call.digits.length >= call.wait.num) {
+    const { cb } = call.wait; call.wait = null;
+    voiceScreen(`You pressed ${esc(call.digits || k)}`);
+    voicePost(cb, { dtmfDigits: call.digits });
+  }
+}
+
+function beep() {
+  try {
+    const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 880; g.gain.value = 0.15; o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + 0.35); setTimeout(() => ctx.close(), 600);
+  } catch (e) {}
+}
+
+async function startVoiceNote(n) {
+  const max = (+n.getAttribute('maxLength') || 60) * 1000;
+  try {
+    beep();
+    const r = new RumbuRecorder(); await r.start();
+    call.recording = { r, cb: n.getAttribute('callbackUrl'), timer: setTimeout(stopVoiceNote, max) };
+    voiceScreen('<span class="rec-dot">●</span> Recording. Describe the problem, then press # on the keypad.');
+  } catch (e) {
+    voiceScreen('Allow microphone access in your browser to leave a voice note.');
+  }
+}
+
+async function stopVoiceNote() {
+  const rec = call && call.recording; if (!rec) return;
+  call.recording = null; clearTimeout(rec.timer);
+  voiceScreen('Sending your voice note…');
+  try {
+    const wav = await rec.r.stop();
+    const fd = new FormData(); fd.append('audio', wav, 'note.wav'); fd.append('csrf', CSRF);
+    const res = await fetch('/simulator/recording', { method: 'POST', body: fd });
+    const { recordingUrl } = await res.json();
+    await voicePost(rec.cb, { recordingUrl });
+  } catch (e) { voiceScreen("The voice note didn't upload. Try the call again."); }
+}
+
+async function hangVoice(msg = 'Call ended.') {
+  if (!call) return;
+  const id = call.id;
+  if (player) player.pause();
+  if (call.recording) { clearTimeout(call.recording.timer); call.recording.r.stop().catch(() => {}); }
+  call = null;
+  screen.innerHTML = `<span class="hint">${esc(msg)}</span>`;
+  fetch('/voice', { method: 'POST', body: new URLSearchParams({ sessionId: id, callerNumber: $('phone').value, isActive: '0', durationInSeconds: '30' }) });
+  loadInbox();
+}
+
+$('vcall').onclick = () => {
+  if (call) return;
+  session = null; path = [];
+  call = { id: 'call-' + Date.now() };
+  voiceScreen('Ringing…');
+  setTimeout(() => call && voicePost('/voice'), 700);
+};
+
 $('phone').onchange = loadInbox;
 loadInbox(); setInterval(loadInbox, 4000);
 </script>

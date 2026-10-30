@@ -20,7 +20,9 @@ from rumbu.content import CROPS, LGAS, PROBLEMS, crop_name, lga_name, problem_na
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.config.update(SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_HTTPONLY=True,
-                  PERMANENT_SESSION_LIFETIME=timedelta(days=7))
+                  PERMANENT_SESSION_LIFETIME=timedelta(days=7), MAX_CONTENT_LENGTH=6 * 1024 * 1024)
+
+RECORDINGS_DIR = os.path.join(app.static_folder, "recordings")
 
 DEMO = os.environ.get("SEED_DEMO", "1") == "1"
 SIMULATOR = os.environ.get("SIMULATOR", "1") == "1"
@@ -352,12 +354,89 @@ def admin_users():
     return render_template("users.html", users=users, farmers=farmers)
 
 
+# ---------- Voice prompt studio ----------
+def _prompt_rows():
+    rows = []
+    for key, p in voice.PROMPTS.items():
+        row = {"key": key, "label": p["label"]}
+        for lang in ("ha", "en"):
+            f = voice.audio_file(key, lang)
+            v = int(os.path.getmtime(os.path.join(voice.AUDIO_DIR, f))) if f else 0
+            row[lang] = {"text": p[lang], "file": f, "v": v}
+        rows.append(row)
+    return rows
+
+
+@app.get("/admin/voice")
+@auth.require("admin")
+def admin_voice():
+    rows = _prompt_rows()
+    done = sum(1 for r in rows if r["ha"]["file"])
+    return render_template("voice.html", rows=rows, done=done)
+
+
+@app.post("/admin/voice/<lang>/<key>")
+@auth.require("admin")
+def admin_voice_save(lang, key):
+    if lang not in ("ha", "en") or key not in voice.PROMPTS:
+        abort(404)
+    for ext in voice.AUDIO_EXTS:  # one recording per prompt
+        old = os.path.join(voice.AUDIO_DIR, f"{lang}_{key}{ext}")
+        if os.path.exists(old):
+            os.remove(old)
+    _save_wav(request.files.get("audio"), voice.AUDIO_DIR, f"{lang}_{key}.wav")
+    return {"ok": True, "url": url_for("static", filename=f"audio/{lang}_{key}.wav")}
+
+
+@app.post("/admin/voice/<lang>/<key>/delete")
+@auth.require("admin")
+def admin_voice_delete(lang, key):
+    f = voice.audio_file(key, lang) if key in voice.PROMPTS and lang in ("ha", "en") else None
+    if f:
+        os.remove(os.path.join(voice.AUDIO_DIR, f))
+    return {"ok": True}
+
+
+@app.get("/admin/voice.zip")
+@auth.require("admin")
+def admin_voice_zip():
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for name in sorted(os.listdir(voice.AUDIO_DIR)):
+            if name.endswith(voice.AUDIO_EXTS):
+                z.write(os.path.join(voice.AUDIO_DIR, name), f"static/audio/{name}")
+    return Response(buf.getvalue(), mimetype="application/zip",
+                    headers={"Content-Disposition": "attachment; filename=rumbu-voice-prompts.zip"})
+
+
 # ================= Phone simulator (demo) =================
 @app.get("/simulator")
 def simulator():
     if not SIMULATOR:
         abort(404)
     return render_template("simulator.html")
+
+
+def _save_wav(file, folder, name):
+    data = file.read() if file else b""
+    if len(data) < 100 or data[:4] != b"RIFF" or data[8:12] != b"WAVE":
+        abort(400, "That doesn't look like a WAV recording. Record it again.")
+    os.makedirs(folder, exist_ok=True)
+    tmp = os.path.join(folder, name + ".tmp")
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, os.path.join(folder, name))
+
+
+@app.post("/simulator/recording")
+def simulator_recording():
+    """Stands in for the recording Africa's Talking would host after a real call."""
+    if not SIMULATOR:
+        abort(404)
+    name = f"sim-{secrets.token_hex(6)}.wav"
+    _save_wav(request.files.get("audio"), RECORDINGS_DIR, name)
+    return {"recordingUrl": public_base() + "static/recordings/" + name}
 
 
 @app.get("/api/messages")

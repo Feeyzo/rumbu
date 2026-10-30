@@ -181,3 +181,54 @@ def test_buyer_signup_request_and_buy():
     assert db.q("SELECT COUNT(*) n FROM matches WHERE listing_id=?", (listing["id"],), one=True)["n"] == 1
     c.post("/buyer/request", data={"crop": "millet", "bags": "10", "max_price": "60000", "csrf": t})
     assert db.q("SELECT * FROM matches WHERE crop='millet'", one=True) is not None
+
+
+def _wav(seconds=0.5, rate=16000):
+    import io, struct, wave
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate)
+        w.writeframes(struct.pack("<h", 1000) * int(seconds * rate))
+    buf.seek(0)
+    return buf
+
+
+def test_voice_studio_and_playback(tmp_path, monkeypatch):
+    from rumbu import voice
+    monkeypatch.setattr(voice, "AUDIO_DIR", str(tmp_path))
+    admin = logged_in("admin@rumbu.ng")
+    t = csrf(admin)
+    assert b"Voice prompts" in admin.get("/admin/voice").data
+    # bad upload is rejected
+    r = admin.post("/admin/voice/ha/welcome", data={"csrf": t, "audio": (io_bytes(b"not audio"), "x.wav")},
+                   content_type="multipart/form-data")
+    assert r.status_code == 400
+    r = admin.post("/admin/voice/ha/welcome", data={"csrf": t, "audio": (_wav(), "p.wav")},
+                   content_type="multipart/form-data")
+    assert r.status_code == 200 and (tmp_path / "ha_welcome.wav").exists()
+    assert admin.post("/admin/voice/ha/../../x", data={"csrf": t}).status_code == 404
+    # the call now plays the recording instead of reading text
+    x = client.post("/voice", data={"sessionId": "v9", "callerNumber": "+2348099999999", "isActive": "1"}).get_data(as_text=True)
+    assert '<Play url="' in x and "static/audio/ha_welcome.wav" in x
+    # storage advice plays the crop's own tip prompt; unrecorded ones fall back to <Say>
+    x = client.post("/voice?step=storage", data={"callerNumber": "+2348099999999", "isActive": "1", "dtmfDigits": "1"}).get_data(as_text=True)
+    assert "<Say>" in x and "Masara" in x
+    assert admin.get("/admin/voice.zip").headers["Content-Type"] == "application/zip"
+    admin.post("/admin/voice/ha/welcome/delete", data={"csrf": t})
+    assert not (tmp_path / "ha_welcome.wav").exists()
+
+
+def test_simulator_voice_note_reaches_admin():
+    c = rumbu_app.app.test_client()
+    t = csrf(c)
+    r = c.post("/simulator/recording", data={"csrf": t, "audio": (_wav(), "n.wav")}, content_type="multipart/form-data")
+    url = r.json["recordingUrl"]
+    assert "/static/recordings/sim-" in url
+    c.post("/voice?step=recorded", data={"callerNumber": PHONE, "isActive": "1", "recordingUrl": url})
+    admin = logged_in("admin@rumbu.ng")
+    assert url in admin.get("/admin").get_data(as_text=True)
+
+
+def io_bytes(b):
+    import io
+    return io.BytesIO(b)

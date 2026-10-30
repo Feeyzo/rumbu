@@ -29,6 +29,7 @@
         {% if user.role in ('partner', 'admin') %}<a href="{{ url_for('partner_insights') }}" class="{{ 'on' if ep == 'partner_insights' }}">Insights</a>{% endif %}
         {% if user.role == 'admin' %}
           <a href="{{ url_for('admin_console') }}" class="{{ 'on' if ep == 'admin_console' }}">Operations</a>
+          <a href="{{ url_for('admin_voice') }}" class="{{ 'on' if ep == 'admin_voice' }}">Voice prompts</a>
           <a href="{{ url_for('admin_users') }}" class="{{ 'on' if ep == 'admin_users' }}">People</a>
         {% endif %}
         {% if simulator %}<a href="{{ url_for('simulator') }}" class="{{ 'on' if ep == 'simulator' }}">Phone simulator</a>{% endif %}

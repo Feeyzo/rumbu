@@ -128,3 +128,5 @@ audio { height: 32px; max-width: 230px; }
 .demo-accounts button:hover { background: rgba(255,255,255,.2); }
 .demo-accounts small { color: #aeb8da; display: block; }
 @media (max-width: 760px) { .auth { grid-template-columns: 1fr; margin: 16px; } .auth > div { padding: 24px; } }
+
+[hidden] { display: none !important; }
