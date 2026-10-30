@@ -70,9 +70,9 @@ def create_listing(phone, crop, bags, ask_price):
     return False
 
 
-def create_buyer(name, phone, crop, bags, max_price):
-    bid = db.ex("INSERT INTO buyers (name, phone, crop, bags, max_price, created_at) VALUES (?,?,?,?,?,?)",
-                (name, db.normalize_phone(phone), crop, bags, max_price, db.now()))
+def create_buyer(name, phone, crop, bags, max_price, user_id=None):
+    bid = db.ex("INSERT INTO buyers (name, phone, crop, bags, max_price, created_at, user_id) VALUES (?,?,?,?,?,?,?)",
+                (name, db.normalize_phone(phone), crop, bags, max_price, db.now(), user_id))
     matched = 0
     for listing in db.q("SELECT * FROM listings WHERE crop=? AND status='open' ORDER BY created_at", (crop,)):
         buyer = db.q("SELECT * FROM buyers WHERE id=?", (bid,), one=True)
@@ -130,3 +130,16 @@ def classify(text):
         if any(any(w.startswith(k) for k in keys) for w in words):
             return problem, crop
     return "other", crop
+
+
+def buy_listing(listing_id, user):
+    """A logged-in buyer takes a specific open listing at its price."""
+    listing = db.q("SELECT * FROM listings WHERE id=? AND status='open'", (listing_id,), one=True)
+    if not listing:
+        return False
+    price = _effective_price(listing)
+    bid = db.ex("INSERT INTO buyers (name, phone, crop, bags, max_price, created_at, user_id) VALUES (?,?,?,?,?,?,?)",
+                (user["org"] or user["name"], user["phone"], listing["crop"], listing["bags"], price, db.now(),
+                 user["id"]))
+    buyer = db.q("SELECT * FROM buyers WHERE id=?", (bid,), one=True)
+    return _do_match(listing, buyer)

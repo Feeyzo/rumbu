@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_macros.html" import heatmap, crop_bars, week_chart, price_table with context %}
+{% block title %}Food-security insights · RUMBU{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Post-harvest loss insights</h1>
+    <p>Reported by farmers themselves, by USSD, SMS and phone call, across Kano State. Farmer identities are never shown here.</p>
+  </div>
+  <a class="btn ghost" href="{{ url_for('partner_export') }}" download>Download data (CSV)</a>
+</div>
+
+<section class="figures">
+  <div><b>{{ "{:,}".format(s.farmers) }}</b><span>farmers reporting</span></div>
+  <div><b>{{ s.lgas }}</b><span>LGAs covered</span></div>
+  <div><b>{{ "{:,}".format(s.reports) }}</b><span>loss reports</span></div>
+  <div><b>{{ "{:,}".format(s.bags_at_risk) }}</b><span>bags flagged at risk</span></div>
+  <div><b>{{ s.airtime | naira }}</b><span>paid to farmers for data</span></div>
+</section>
+
+{% if hotspots %}
+<div class="flash" style="background:var(--indigo-soft);border-color:var(--indigo)">
+  <b>Where to act first:</b>
+  {% for lga, n in hotspots %}{{ lga_name(lga) }} ({{ n }} reports){{ ', ' if not loop.last else '.' }}{% endfor %}
+  {% set top = by_crop[0] if by_crop else None %}{% if top %} {{ crop_name(top.crop, 'en') }} has the most bags at risk.{% endif %}
+</div>
+{% endif %}
+
+<section class="panel">
+  <h2>Loss map by local government area</h2>
+  <p class="sub">Number of reports by problem. Darker cells mean more reports.</p>
+  {{ heatmap(heat, maxheat) }}
+</section>
+
+<div class="cols-2" style="margin-top:18px">
+  <section class="panel">
+    <h2>Bags at risk by crop</h2>
+    <p class="sub">Where storage support, like hermetic bags or drying tarps, would save the most.</p>
+    {{ crop_bars(by_crop) }}
+  </section>
+  <section class="panel">
+    <h2>Reports per week</h2>
+    <p class="sub">Last four weeks.</p>
+    {{ week_chart(weeks) }}
+  </section>
+</div>
+
+<div class="cols-2" style="margin-top:18px">
+  <section class="panel">
+    <h2>How farmers report</h2>
+    <p class="sub">Voice matters for farmers who can't read.</p>
+    {% set total = by_channel | map(attribute='n') | sum or 1 %}
+    {% for c in by_channel %}
+    <div class="barrow"><span>{{ {'ussd': 'USSD menu', 'sms': 'SMS', 'voice': 'Phone call'}.get(c.channel, c.channel) }}</span><div class="bar-track"><div class="bar-fill" style="width: {{ c.n / total * 100 }}%; background: var(--gold)"></div></div><span style="text-align:right">{{ (c.n / total * 100) | round | int }}%</span></div>
+    {% endfor %}
+  </section>
+  <section class="panel">
+    <h2>Market prices</h2>
+    <p class="sub">A falling price right after harvest signals distress selling.</p>
+    {{ price_table(prices) }}
+  </section>
+</div>
+{% endblock %}

@@ -28,6 +28,10 @@ CREATE TABLE IF NOT EXISTS reports (
     bags INTEGER, channel TEXT, note TEXT, recording_url TEXT, reward INTEGER DEFAULT 0,
     status TEXT DEFAULT 'new', created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, name TEXT, org TEXT, phone TEXT,
+    role TEXT, password_hash TEXT, created_at TEXT
+);
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT, direction TEXT, channel TEXT, phone TEXT,
     body TEXT, status TEXT, created_at TEXT
@@ -48,6 +52,9 @@ def conn():
 def init():
     with conn() as c:
         c.executescript(SCHEMA)
+        cols = [r[1] for r in c.execute("PRAGMA table_info(buyers)")]
+        if "user_id" not in cols:
+            c.execute("ALTER TABLE buyers ADD COLUMN user_id INTEGER")
 
 
 def q(sql, args=(), one=False):

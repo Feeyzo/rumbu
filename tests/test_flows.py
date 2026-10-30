@@ -100,10 +100,84 @@ def test_voice_flow():
     assert client.post("/voice", data={**base, "isActive": "0"}).status_code == 200
 
 
-def test_dashboard_pages():
-    assert b"early-warning" in client.get("/").data
-    assert b"simulator" in client.get("/simulator").data.lower()
-    assert client.get("/api/feed").json["stats"]["farmers"] >= 7
-    r = client.post("/admin/alert", data={"lga": "bichi", "when": "gobe"})
+def csrf(c):
+    c.get("/")
+    with c.session_transaction() as sess:
+        return sess["csrf"]
+
+
+def logged_in(email):
+    c = rumbu_app.app.test_client()
+    r = c.post("/login", data={"email": email, "password": "rumbu2026", "csrf": csrf(c)})
     assert r.status_code == 302
-    assert any("ruwan sama" in m for m in sms_to(PHONE)) or any("Rain expected" in m for m in sms_to(PHONE))
+    return c
+
+
+def test_public_pages():
+    assert b"Rumbu a wayarka" in client.get("/").data
+    assert b"Phone simulator" in client.get("/simulator").data
+    assert client.get("/login").status_code == 200
+    assert client.get("/admin").status_code == 302  # needs login
+    assert client.get("/api/public-stats").json["farmers"] >= 7
+    assert client.get("/api/feed").status_code == 302  # phone numbers are admin-only
+
+
+def test_login_redirects_by_role():
+    c = rumbu_app.app.test_client()
+    token = csrf(c)
+    assert c.post("/login", data={"email": "admin@rumbu.ng", "password": "wrong", "csrf": token}).status_code == 200
+    for email, home in [("admin@rumbu.ng", "/admin"), ("partner@rumbu.ng", "/partner"), ("buyer@rumbu.ng", "/buyer")]:
+        c = rumbu_app.app.test_client()
+        r = c.post("/login", data={"email": email, "password": "rumbu2026", "csrf": csrf(c)})
+        assert r.headers["Location"].endswith(home)
+
+
+def test_csrf_required():
+    c = logged_in("admin@rumbu.ng")
+    assert c.post("/admin/price", data={"crop": "maize", "price": "1"}).status_code == 400
+
+
+def test_roles_are_separated():
+    buyer = logged_in("buyer@rumbu.ng")
+    assert buyer.get("/admin").status_code == 403
+    assert buyer.get("/partner").status_code == 403
+    partner = logged_in("partner@rumbu.ng")
+    assert partner.get("/buyer").status_code == 403
+    assert partner.get("/partner").status_code == 200
+    csv_text = partner.get("/partner/export.csv").get_data(as_text=True)
+    assert csv_text.startswith("date,lga,crop") and "+234" not in csv_text  # anonymised
+    admin = logged_in("admin@rumbu.ng")
+    for page in ("/admin", "/admin/users", "/buyer", "/partner"):
+        assert admin.get(page).status_code == 200
+
+
+def test_admin_actions():
+    admin = logged_in("admin@rumbu.ng")
+    t = csrf(admin)
+    assert admin.post("/admin/alert", data={"lga": "bichi", "when": "gobe", "csrf": t}).status_code == 302
+    assert any("ruwan sama" in m or "Rain expected" in m for m in sms_to(PHONE))
+    admin.post("/admin/price", data={"crop": "millet", "price": "52000", "csrf": t})
+    assert db.get_price("millet")["price"] == 52000
+    r = admin.post("/admin/users", data={"role": "partner", "name": "NGO", "org": "Food NGO", "email": "ngo@example.org",
+                                         "password": "longenough", "csrf": t})
+    assert r.status_code == 302 and db.q("SELECT role FROM users WHERE email='ngo@example.org'", one=True)["role"] == "partner"
+
+
+def test_buyer_signup_request_and_buy():
+    c = rumbu_app.app.test_client()
+    r = c.post("/signup", data={"name": "Bala", "org": "Bala Grains", "phone": "08061234567",
+                                "email": "bala@example.org", "password": "longenough", "csrf": csrf(c)})
+    assert r.headers["Location"].endswith("/buyer")
+    t = csrf(c)
+    page = c.get("/buyer").get_data(as_text=True)
+    assert "Listed by farmers today" in page
+    listing = db.q("SELECT * FROM listings WHERE status='open' AND crop='rice'", one=True)
+    c.post(f"/buyer/buy/{listing['id']}", data={"csrf": t})
+    assert db.q("SELECT status FROM listings WHERE id=?", (listing["id"],), one=True)["status"] == "matched"
+    assert any("Bala Grains" in m for m in sms_to(listing["phone"]))
+    assert "+2348030000006" in c.get("/buyer").get_data(as_text=True)  # farmer's number now visible
+    # a second buy of the same listing fails cleanly
+    c.post(f"/buyer/buy/{listing['id']}", data={"csrf": t})
+    assert db.q("SELECT COUNT(*) n FROM matches WHERE listing_id=?", (listing["id"],), one=True)["n"] == 1
+    c.post("/buyer/request", data={"crop": "millet", "bags": "10", "max_price": "60000", "csrf": t})
+    assert db.q("SELECT * FROM matches WHERE crop='millet'", one=True) is not None

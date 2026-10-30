@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_macros.html" import price_table with context %}
+{% block title %}Buy produce · RUMBU{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Buy produce</h1>
+    <p>Post what you need, or take produce farmers have listed today. When you're matched, both of you get each other's number by SMS.</p>
+  </div>
+</div>
+
+<section class="figures">
+  <div><b>{{ listings | length }}</b><span>listings open now</span></div>
+  <div><b>{{ requests | selectattr('status', 'equalto', 'open') | list | length }}</b><span>your open requests</span></div>
+  <div><b>{{ matches | length }}</b><span>your matches</span></div>
+  <div><b>{{ spent | naira }}</b><span>bought through RUMBU</span></div>
+</section>
+
+<div class="cols">
+  <div class="stack">
+    <section class="panel">
+      <h2>Listed by farmers today</h2>
+      <p class="sub">Farmers list from their phones. "Market" means they'll take today's market price.</p>
+      <div class="tbl">
+      <table>
+        <tr><th>Crop</th><th>Farmer</th><th>LGA</th><th class="num">Bags</th><th class="num">Per bag</th><th class="num">Total</th><th></th></tr>
+        {% for l in listings %}
+        <tr>
+          <td><b>{{ crop_name(l.crop, 'en') }}</b></td><td>{{ l.farmer or 'Farmer' }}</td><td>{{ lga_name(l.lga) }}</td>
+          <td class="num">{{ l.bags }}</td>
+          <td class="num">{{ l.price | naira }}{% if not l.ask_price %} <span class="tag">market</span>{% endif %}</td>
+          <td class="num">{{ (l.bags * l.price) | naira }}</td>
+          <td><form method="post" action="{{ url_for('buyer_buy', listing_id=l.id) }}">{{ '' }}<input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm gold">Buy</button></form></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">Nothing listed right now. Post a request and we'll text you when a farmer lists.</td></tr>
+        {% endfor %}
+      </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Your matches</h2>
+      <p class="sub">Call the farmer to agree collection and payment.</p>
+      <div class="tbl">
+      <table>
+        <tr><th>Date</th><th>Crop</th><th>Farmer</th><th>Phone</th><th>LGA</th><th class="num">Bags</th><th class="num">Per bag</th></tr>
+        {% for m in matches %}
+        <tr><td>{{ m.created_at[:10] }}</td><td>{{ crop_name(m.crop, 'en') }}</td><td>{{ m.farmer }}</td>
+          <td><a href="tel:{{ m.farmer_phone }}">{{ m.farmer_phone }}</a></td><td>{{ lga_name(m.lga) }}</td>
+          <td class="num">{{ m.bags }}</td><td class="num">{{ m.price | naira }}</td></tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">No matches yet. Buy a listing above or post a request.</td></tr>
+        {% endfor %}
+      </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <h2>Post a request</h2>
+      <p class="sub">We match you with any farmer listing at or below your price.</p>
+      <form method="post" action="{{ url_for('buyer_request') }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="field"><label for="crop">Crop</label>
+          <select id="crop" name="crop">{% for k, ha, en, u in CROPS %}<option value="{{ k }}">{{ en }}</option>{% endfor %}</select></div>
+        <div class="row">
+          <div class="field"><label for="bags">Bags</label><input id="bags" name="bags" type="number" min="1" required></div>
+          <div class="field"><label for="max_price">Highest ₦ per bag</label><input id="max_price" name="max_price" type="number" min="1" required></div>
+        </div>
+        <button class="btn block">Post request</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Your requests</h2>
+      <table>
+        <tr><th>Crop</th><th class="num">Bags left</th><th class="num">Max</th><th>Status</th></tr>
+        {% for r in requests %}
+        <tr><td>{{ crop_name(r.crop, 'en') }}</td><td class="num">{{ r.bags }}</td><td class="num">{{ r.max_price | naira }}</td>
+          <td><span class="tag {{ 'leaf' if r.status == 'matched' else '' }}">{{ 'filled' if r.status == 'matched' else 'open' }}</span></td></tr>
+        {% else %}<tr><td colspan="4" class="empty">No requests yet.</td></tr>{% endfor %}
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Market prices</h2>
+      <p class="sub">The same prices farmers see.</p>
+      {{ price_table(prices) }}
+    </section>
+  </div>
+</div>
+{% endblock %}

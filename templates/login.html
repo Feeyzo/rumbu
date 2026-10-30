@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Log in · RUMBU{% endblock %}
+{% block body %}
+<div class="auth">
+  <div>
+    <h1>Log in</h1>
+    {% with msgs = get_flashed_messages() %}{% for m in msgs %}<div class="flash" role="alert">{{ m }}</div>{% endfor %}{% endwith %}
+    <form method="post" id="loginform">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn block">Log in</button>
+    </form>
+    <p style="margin-top:20px;color:var(--muted)">Buying produce? <a href="{{ url_for('signup') }}">Create a buyer account</a>.<br>
+    Farmers don't need an account here. Dial <b>{{ ussd_code }}</b> on your phone.</p>
+  </div>
+  <div class="side">
+    <h2>One system, three kinds of account</h2>
+    <ul>
+      <li><b>Buyers</b> post what they want and get matched to farmers.</li>
+      <li><b>Partners</b> see where harvests are being lost.</li>
+      <li><b>The RUMBU team</b> runs operations and answers farmers.</li>
+    </ul>
+    {% if demo_users %}
+    <div class="demo-accounts">
+      <b>Demo accounts</b>
+      <small>Password for all: {{ demo_password }}</small>
+      {% for email, name, org, phone, role in demo_users %}
+      <button type="button" data-email="{{ email }}">{{ {'admin': 'RUMBU team (admin)', 'partner': 'Partner', 'buyer': 'Buyer'}[role] }}<small>{{ org }}</small></button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('.demo-accounts button').forEach(b => b.onclick = () => {
+  document.getElementById('email').value = b.dataset.email;
+  document.getElementById('password').value = {{ demo_password | tojson }};
+  document.getElementById('loginform').submit();
+});
+</script>
+{% endblock %}

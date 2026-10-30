@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% from "_macros.html" import heatmap, crop_bars, price_table with context %}
+{% block title %}Operations · RUMBU{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Operations</h1>
+    <p>Answer farmers, send alerts, keep prices current and watch every message go out.</p>
+  </div>
+  {% if not live %}<p class="tag gold" style="font-size:13px;padding:6px 12px">Dry run: add Africa's Talking keys to send for real</p>{% endif %}
+</div>
+
+<section class="figures" id="stats">
+  <div><b data-k="farmers">{{ s.farmers }}</b><span>farmers</span></div>
+  <div><b data-k="reports">{{ s.reports }}</b><span>loss reports</span></div>
+  <div><b>{{ pending }}</b><span>waiting for a reply</span></div>
+  <div><b data-k="matches">{{ s.matches }}</b><span>buyer matches</span></div>
+  <div><b data-k="trade_value" data-naira="1">{{ s.trade_value | naira }}</b><span>trade matched</span></div>
+  <div><b data-k="airtime" data-naira="1">{{ s.airtime | naira }}</b><span>airtime paid</span></div>
+  <div><b data-k="sms">{{ s.sms }}</b><span>SMS sent</span></div>
+</section>
+
+<div class="cols">
+  <div class="stack">
+    <section class="panel">
+      <h2>Farmer reports</h2>
+      <p class="sub">Voice notes and "something else" reports need an agronomist. Listen, then reply by SMS.</p>
+      <div class="scroll tbl">
+      <table>
+        <tr><th>#</th><th>Farmer</th><th>LGA</th><th>Crop</th><th>Problem</th><th class="num">Bags</th><th>Via</th><th>Detail or reply</th></tr>
+        {% for r in reports %}
+        {% set waiting = r.status == 'new' and r.problem in ('voice_note', 'other') %}
+        <tr>
+          <td>{{ r.id }}</td><td>{{ r.name or r.phone }}</td><td>{{ lga_name(r.lga) }}</td>
+          <td>{{ crop_name(r.crop, 'en') if r.crop else '-' }}</td>
+          <td>{% if waiting %}<span class="tag red">Needs reply</span> {% endif %}{{ problem_name(r.problem, 'en') if r.problem != 'voice_note' else 'Voice note' }}</td>
+          <td class="num">{{ r.bags or '' }}</td><td><span class="tag">{{ r.channel }}</span></td>
+          <td>
+            {% if r.recording_url %}<audio controls preload="none" src="{{ r.recording_url }}"></audio>{% elif r.note and r.note != 'demo' %}{{ r.note }}{% endif %}
+            {% if waiting %}
+            <form class="row" method="post" action="{{ url_for('admin_reply') }}" style="margin-top:6px">
+              <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="report_id" value="{{ r.id }}">
+              <input name="message" placeholder="Advice to send by SMS" required aria-label="Advice for report {{ r.id }}" style="min-width:200px">
+              <button class="btn sm">Send</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Loss map</h2>
+      <p class="sub">The same view partners see.</p>
+      {{ heatmap(heat, maxheat) }}
+    </section>
+  </div>
+  <aside class="panel">
+    <h2>Live messages</h2>
+    <p class="sub">Every SMS, airtime payment and call, newest first.</p>
+    <ul class="feed" id="feed"><li class="meta">Loading…</li></ul>
+  </aside>
+</div>
+
+<div class="cols-2" style="margin-top:18px">
+  <section class="panel">
+    <h2>Marketplace</h2>
+    <h3 style="font-size:16px;margin:12px 0 6px">Matches</h3>
+    <div class="tbl"><table>
+      <tr><th>Farmer</th><th>Buyer</th><th>Crop</th><th class="num">Bags</th><th class="num">Per bag</th></tr>
+      {% for m in matches %}<tr><td>{{ m.farmer }}</td><td>{{ m.buyer }}</td><td>{{ crop_name(m.crop,'en') }}</td><td class="num">{{ m.bags }}</td><td class="num">{{ m.price | naira }}</td></tr>
+      {% else %}<tr><td colspan="5" class="empty">No matches yet.</td></tr>{% endfor %}
+    </table></div>
+    <h3 style="font-size:16px;margin:18px 0 6px">Farmer listings</h3>
+    <div class="tbl"><table>
+      <tr><th>Farmer</th><th>Crop</th><th class="num">Bags</th><th class="num">Asking</th><th>Status</th></tr>
+      {% for l in listings %}<tr><td>{{ l.name or l.phone }}</td><td>{{ crop_name(l.crop,'en') }}</td><td class="num">{{ l.bags }}</td><td class="num">{{ l.ask_price | naira if l.ask_price else 'market' }}</td><td>{{ l.status }}</td></tr>
+      {% else %}<tr><td colspan="5" class="empty">No listings yet.</td></tr>{% endfor %}
+    </table></div>
+    <h3 style="font-size:16px;margin:18px 0 6px">Buyer requests</h3>
+    <div class="tbl"><table>
+      <tr><th>Buyer</th><th>Crop</th><th class="num">Bags</th><th class="num">Max</th><th>Status</th></tr>
+      {% for b in buyers %}<tr><td>{{ b.name }}</td><td>{{ crop_name(b.crop,'en') }}</td><td class="num">{{ b.bags }}</td><td class="num">{{ b.max_price | naira if b.max_price < 1000000000 else 'any' }}</td><td>{{ b.status }}</td></tr>{% endfor %}
+    </table></div>
+  </section>
+
+  <div class="stack">
+    <section class="panel actions">
+      <h2 style="margin-bottom:14px">Actions</h2>
+      <div>
+        <h3>Send a rain alert by SMS</h3>
+        <form class="row" method="post" action="{{ url_for('admin_alert') }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <select name="lga" aria-label="LGA">{% for k, n, a, b in LGAS %}<option value="{{ k }}">{{ n }}</option>{% endfor %}</select>
+          <input name="when" placeholder="When, e.g. gobe" aria-label="When">
+          <button class="btn gold">Send alert</button>
+        </form>
+      </div>
+      <div>
+        <h3>Check the forecast for every LGA</h3>
+        <form method="post" action="{{ url_for('admin_weather') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn ghost">Check forecast and alert</button></form>
+      </div>
+      <div>
+        <h3>Add a buyer who isn't online</h3>
+        <form class="row" method="post" action="{{ url_for('admin_buyer') }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input name="name" placeholder="Business" required aria-label="Business">
+          <input name="phone" placeholder="Phone" required aria-label="Phone">
+          <select name="crop" aria-label="Crop">{% for k, ha, en, u in CROPS %}<option value="{{ k }}">{{ en }}</option>{% endfor %}</select>
+          <input name="bags" type="number" min="1" placeholder="Bags" required aria-label="Bags">
+          <input name="max_price" type="number" min="1" placeholder="Max ₦/bag" required aria-label="Max price per bag">
+          <button class="btn">Save and match</button>
+        </form>
+      </div>
+      <div>
+        <h3>Update a market price</h3>
+        <form class="row" method="post" action="{{ url_for('admin_price') }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <select name="crop" aria-label="Crop">{% for k, ha, en, u in CROPS %}<option value="{{ k }}">{{ en }}</option>{% endfor %}</select>
+          <input name="price" type="number" min="1" placeholder="₦ per bag" required aria-label="Price per bag">
+          <button class="btn">Update price</button>
+        </form>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Market prices</h2>
+      {{ price_table(prices) }}
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const fmt = n => Number(n || 0).toLocaleString();
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function refresh() {
+  try {
+    const d = await (await fetch('{{ url_for("api_feed") }}')).json();
+    document.querySelectorAll('#stats [data-k]').forEach(el => {
+      el.textContent = (el.dataset.naira ? '₦' : '') + fmt(d.stats[el.dataset.k]);
+    });
+    document.getElementById('feed').innerHTML = d.messages.map(m => `
+      <li><span class="tag ${m.channel === 'airtime' ? 'gold' : ''} ${m.direction === 'in' ? 'leaf' : ''}">${m.direction === 'in' ? 'in: ' : ''}${esc(m.channel)}</span>
+      <b>${esc(m.phone)}</b><div>${esc(m.body)}</div>
+      <div class="meta">${esc(m.created_at.replace('T', ' ').slice(0, 19))}, ${esc(m.status)}</div></li>`).join('')
+      || '<li class="meta">No messages yet. Dial in from the phone simulator.</li>';
+  } catch (e) {}
+}
+refresh(); setInterval(refresh, 3000);
+</script>
+{% endblock %}

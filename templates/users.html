@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}People · RUMBU{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>People</h1>
+    <p>Web accounts for buyers, partners and the team, and every farmer registered by phone.</p>
+  </div>
+</div>
+<div class="cols">
+  <div class="stack">
+    <section class="panel">
+      <h2>Web accounts</h2>
+      <div class="tbl"><table>
+        <tr><th>Name</th><th>Organisation</th><th>Email</th><th>Role</th><th>Joined</th></tr>
+        {% for u in users %}<tr><td>{{ u.name }}</td><td>{{ u.org }}</td><td>{{ u.email }}</td>
+          <td><span class="tag {{ 'gold' if u.role == 'admin' else 'leaf' if u.role == 'partner' else '' }}">{{ u.role }}</span></td><td>{{ u.created_at[:10] }}</td></tr>{% endfor %}
+      </table></div>
+    </section>
+    <section class="panel">
+      <h2>Farmers</h2>
+      <p class="sub">Registered by dialling {{ ussd_code }}. Their phone number is their account.</p>
+      <div class="tbl scroll"><table>
+        <tr><th>Name</th><th>Phone</th><th>LGA</th><th>Language</th><th class="num">Reports</th><th>Joined</th></tr>
+        {% for f in farmers %}<tr><td>{{ f.name }}</td><td>{{ f.phone }}</td><td>{{ lga_name(f.lga) }}</td><td>{{ 'Hausa' if f.lang == 'ha' else 'English' }}</td><td class="num">{{ f.reports }}</td><td>{{ (f.created_at or '')[:10] }}</td></tr>
+        {% else %}<tr><td colspan="6" class="empty">No farmers yet.</td></tr>{% endfor %}
+      </table></div>
+    </section>
+  </div>
+  <section class="panel">
+    <h2>Add an account</h2>
+    <p class="sub">Use this for partners and team members. Buyers can also sign up themselves.</p>
+    <form method="post">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="role">Type of account</label>
+        <select id="role" name="role"><option value="partner">Partner (government, NGO, insurer)</option><option value="buyer">Buyer</option><option value="admin">RUMBU team (admin)</option></select></div>
+      <div class="field"><label for="name">Name</label><input id="name" name="name" required></div>
+      <div class="field"><label for="org">Organisation</label><input id="org" name="org"></div>
+      <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required></div>
+      <div class="field"><label for="phone">Phone <small>(needed for buyers)</small></label><input id="phone" name="phone" type="tel"></div>
+      <div class="field"><label for="password">Temporary password</label><input id="password" name="password" minlength="8" required></div>
+      <button class="btn block">Add account</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

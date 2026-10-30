@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}RUMBU: a granary in every phone{% endblock %}
+{% block head %}
+<style>
+  .hero { background: var(--indigo); color: #fff; overflow: hidden; }
+  .hero-in { max-width: 1240px; margin: 0 auto; padding: 56px 24px 72px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 48px; align-items: center; }
+  .hero h1 { font-size: clamp(44px, 6.4vw, 84px); font-weight: 800; line-height: .98; letter-spacing: -0.025em; }
+  .hero h1 span { display: block; font-weight: 500; font-size: .42em; letter-spacing: -0.01em; color: #c9d1ec; margin-top: 14px; line-height: 1.2; }
+  .hero p.lede { font-size: 19px; color: #dfe4f5; max-width: 34em; margin: 22px 0 28px; }
+  .dial { display: inline-flex; flex-direction: column; gap: 2px; padding: 14px 20px 16px; border: 2px solid var(--gold); border-radius: var(--r); margin-bottom: 28px; }
+  .dial small { color: #c9d1ec; font-size: 14px; }
+  .dial b { font-family: var(--display); font-size: clamp(34px, 4.2vw, 52px); color: var(--gold); letter-spacing: 0.04em; font-weight: 700; line-height: 1; }
+  .hero .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .hero .btn.ghost { color: #fff; border-color: #8f9cc9; }
+  .hero .btn.ghost:hover { background: rgba(255,255,255,.08); }
+
+  /* the phone */
+  .handset { justify-self: center; width: 280px; background: #1b1d21; border-radius: 36px 36px 44px 44px; padding: 26px 18px 22px; box-shadow: 0 30px 60px rgba(5,10,30,.45), inset 0 0 0 2px #2c2f35; position: relative; }
+  .handset .ear { width: 54px; height: 6px; border-radius: 3px; background: #33363c; margin: 0 auto 16px; }
+  .lcd { background: #b9c6a4; border-radius: 8px; height: 246px; padding: 10px 12px; font: 500 13px/1.4 "IBM Plex Mono", monospace; color: #1a2410; box-shadow: inset 0 2px 6px rgba(0,0,0,.25); overflow: hidden; position: relative; }
+  .lcd .net { display: flex; justify-content: space-between; font-size: 11px; opacity: .7; margin-bottom: 6px; }
+  .lcd .out { transition: opacity .25s; white-space: pre-wrap; max-height: 178px; overflow: hidden; }
+  .lcd .out.fade { opacity: 0; }
+  .lcd .reply { position: absolute; left: 13px; right: 13px; bottom: 10px; border-top: 1px solid rgba(26,36,16,.35); padding-top: 4px; font-size: 12px; display: flex; justify-content: space-between; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 16px; }
+  .pad span { background: #2c2f35; color: #e6e6e6; border-radius: 10px 10px 14px 14px; text-align: center; padding: 7px 0; font: 600 15px var(--body); transition: background .12s; }
+  .pad span.hit { background: var(--gold); color: var(--ink); }
+  .handset figcaption { color: #9aa3bd; font-size: 13px; text-align: center; margin-top: 14px; }
+
+  .band { max-width: 1240px; margin: 0 auto; padding: 72px 24px; }
+  .band + .band { padding-top: 0; }
+  .band h2 { font-size: clamp(30px, 3.6vw, 44px); max-width: 18em; }
+  .band .intro { font-size: 18px; color: var(--muted); max-width: 40em; margin: 14px 0 0; }
+
+  .problem { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+  .problem ul { list-style: none; padding: 0; margin: 0; }
+  .problem li { padding: 16px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 150px 1fr; gap: 16px; }
+  .problem li b { font-family: var(--display); font-size: 19px; }
+  .problem li span { color: var(--muted); }
+
+  .steps { list-style: none; padding: 0; margin: 36px 0 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; counter-reset: s; border-top: 3px solid var(--indigo); }
+  .steps li { padding: 20px 22px 0 0; counter-increment: s; }
+  .steps li::before { content: counter(s); display: block; font-family: var(--display); font-weight: 800; font-size: 44px; color: var(--gold); line-height: 1; margin-bottom: 10px; }
+  .steps h3 { font-size: 20px; margin-bottom: 6px; }
+  .steps p { margin: 0; color: var(--muted); }
+
+  .live-strip { background: var(--gold-soft); }
+  .live-strip .band { padding-top: 40px; padding-bottom: 40px; display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: center; }
+  .live-strip h2 { font-size: 22px; }
+  .live-strip p { margin: 6px 0 0; color: var(--gold-deep); font-size: 14px; }
+  .live-strip dl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 0; }
+  .live-strip dt { font-family: var(--display); font-size: 34px; font-weight: 700; }
+  .live-strip dd { margin: 0; color: #5e4a1a; font-size: 14px; }
+
+  .who-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; margin-top: 40px; }
+  .who-grid section { border-top: 1px solid var(--line); padding-top: 22px; }
+  .who-grid h3 { font-size: 26px; margin-bottom: 10px; }
+  .who-grid ul { padding-left: 20px; margin: 14px 0 22px; }
+  .who-grid li { margin-bottom: 6px; }
+  .who-grid .pay { color: var(--muted); font-size: 15px; border-left: 3px solid var(--gold); padding-left: 12px; margin-bottom: 22px; }
+  .prices-mini { margin-top: 8px; }
+  .prices-mini td { padding: 6px 8px; }
+
+  .apis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 32px; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
+  .apis div { padding: 20px; border-right: 1px solid var(--line); }
+  .apis div:last-child { border-right: 0; }
+  .apis b { font-family: var(--display); font-size: 20px; display: block; margin-bottom: 6px; color: var(--indigo); }
+  .apis span { color: var(--muted); font-size: 15px; }
+
+  footer.foot { background: var(--ink); color: #b7bfd8; }
+  footer.foot .band { padding-top: 36px; padding-bottom: 36px; display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; font-size: 14px; }
+  footer.foot a { color: #fff; }
+
+  @media (max-width: 960px) {
+    .hero-in, .problem, .who-grid { grid-template-columns: 1fr; }
+    .hero-in { padding-top: 36px; gap: 40px; }
+    .steps, .apis { grid-template-columns: 1fr 1fr; }
+    .steps li { padding-bottom: 24px; }
+    .apis div:nth-child(2) { border-right: 0; }
+    .apis div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+    .live-strip .band { grid-template-columns: 1fr; }
+    .live-strip dl { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 560px) {
+    .steps, .apis { grid-template-columns: 1fr; }
+    .apis div { border-right: 0; border-bottom: 1px solid var(--line); }
+    .problem li { grid-template-columns: 1fr; gap: 2px; }
+    .band { padding: 52px 16px; }
+    .hero-in { padding-left: 16px; padding-right: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .lcd .out { transition: none; } }
+</style>
+{% endblock %}
+
+{% block body %}
+<section class="hero">
+  <div class="hero-in">
+    <div>
+      <h1 lang="ha">Rumbu a wayarka.<span lang="en">A granary in every phone, for every farmer in Kano.</span></h1>
+      <p class="lede">Farmers dial one code on any phone to check market prices, sell to trusted buyers, and get help saving their harvest from weevils, damp and rats. All in Hausa. No smartphone or data needed.</p>
+      <div class="dial"><small>Dial on any phone</small><b>{{ ussd_code }}</b></div>
+      <div class="cta">
+        {% if simulator %}<a class="btn gold" href="{{ url_for('simulator') }}">Try it on a phone</a>{% endif %}
+        <a class="btn ghost" href="{{ url_for('signup') }}">Buy from farmers</a>
+      </div>
+    </div>
+    <figure class="handset" aria-label="A feature phone showing the RUMBU Hausa menu" style="margin:0">
+      <div class="ear"></div>
+      <div class="lcd">
+        <div class="net"><span>▂▄▆ 3G</span><span>{{ ussd_code }}</span></div>
+        <div class="out" id="lcd">{{ screens[0].text }}</div>
+        <div class="reply"><span id="typed">&nbsp;</span><span>Aika</span></div>
+      </div>
+      <div class="pad" id="pad">{% for k in ['1','2','3','4','5','6','7','8','9','*','0','#'] %}<span data-k="{{ k }}">{{ k }}</span>{% endfor %}</div>
+      <figcaption>The real menu farmers see, running on this server.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<div class="band problem" id="problem">
+  <div>
+    <h2>The harvest is grown. Then too much of it is lost.</h2>
+    <p class="intro">Smallholder farmers in Northern Nigeria lose grain after harvest, in storage and at market. Most help is built for smartphones and English. Most farmers have neither.</p>
+  </div>
+  <ul>
+    <li><b>In the store</b><span>Weevils, damp and mould, and rats get into bags kept on the floor or dried on bare ground.</span></li>
+    <li><b>At the market</b><span>Everyone sells right after harvest, so prices drop when farmers most need cash.</span></li>
+    <li><b>In the data</b><span>Nobody sees where losses are happening until weeks later, after field surveys.</span></li>
+  </ul>
+</div>
+
+<div class="band" id="how">
+  <h2>How it works for a farmer</h2>
+  <p class="intro">Everything happens in a USSD menu, a text message or a phone call.</p>
+  <ol class="steps">
+    <li><h3>Dial the code</h3><p>Any phone, any network. Registration asks for a name and local government area, nothing more.</p></li>
+    <li><h3>Check before selling</h3><p>See today's price at Dawanau market and whether it's rising, so they know when holding is worth it.</p></li>
+    <li><h3>Report a problem</h3><p>Pick the crop and what's wrong, or call and describe it in Hausa. Storage advice arrives by SMS.</p></li>
+    <li><h3>Get paid and matched</h3><p>Each report earns airtime. Produce listed for sale is matched to a buyer, who calls the farmer.</p></li>
+  </ol>
+</div>
+
+<div class="live-strip">
+  <div class="band">
+    <div><h2>On RUMBU so far</h2><p>Live from this server, updated as farmers dial in.</p></div>
+    <dl id="live">
+      <div><dt data-k="farmers">{{ "{:,}".format(s.farmers) }}</dt><dd>farmers registered</dd></div>
+      <div><dt data-k="bags_at_risk">{{ "{:,}".format(s.bags_at_risk) }}</dt><dd>bags of harvest flagged at risk</dd></div>
+      <div><dt data-k="trade_value" data-naira="1">{{ s.trade_value | naira }}</dt><dd>in sales matched to buyers</dd></div>
+      <div><dt data-k="airtime" data-naira="1">{{ s.airtime | naira }}</dt><dd>airtime paid to farmers</dd></div>
+    </dl>
+  </div>
+</div>
+
+<div class="band">
+  <h2>Who else uses RUMBU</h2>
+  <div class="who-grid">
+    <section id="buyers">
+      <h3>Buyers and aggregators</h3>
+      <p>Grain merchants, feed mills and processors find supply from hundreds of smallholders without sending agents village to village.</p>
+      <ul>
+        <li>Post what you want to buy and your price. Matching farmers are notified by SMS.</li>
+        <li>Browse produce listed today, by crop, bags and LGA.</li>
+        <li>Take a listing in one click and get the farmer's number.</li>
+      </ul>
+      <p class="pay">RUMBU takes a small commission on each matched sale.</p>
+      <a class="btn" href="{{ url_for('signup') }}">Create a buyer account</a>
+      <table class="prices-mini" aria-label="Today's prices">
+        <tr><th>Today at market</th><th class="num">Per bag</th><th class="num">30 days</th></tr>
+        {% for p in prices[:4] %}<tr><td>{{ crop_name(p.crop, 'en') }}</td><td class="num">{{ p.price | naira }}</td><td class="num {{ 'up' if p.pct > 0 else 'down' if p.pct < 0 }}">{{ '+' if p.pct > 0 }}{{ p.pct }}%</td></tr>{% endfor %}
+      </table>
+    </section>
+    <section id="partners">
+      <h3>Government, NGOs and insurers</h3>
+      <p>Every farmer report becomes a data point on where harvests are being lost and why, weeks before a field survey would find it.</p>
+      <ul>
+        <li>A loss map by local government area and problem.</li>
+        <li>Bags at risk by crop, and how reports are trending week to week.</li>
+        <li>Anonymised data to download for your own analysis.</li>
+      </ul>
+      <p class="pay">Partners subscribe to insights and can sponsor the airtime farmers earn for reporting.</p>
+      <a class="btn ghost" href="{{ url_for('login') }}">Log in to insights</a>
+      <p style="color:var(--muted);font-size:14px;margin-top:12px">Partner accounts are set up by the RUMBU team.</p>
+    </section>
+  </div>
+</div>
+
+<div class="band">
+  <h2>Built on Africa's Talking</h2>
+  <div class="apis">
+    <div><b>USSD</b><span>The main menu: register, prices, selling and reporting on any phone.</span></div>
+    <div><b>SMS</b><span>Advice, rain alerts, buyer matches, and text commands like FARASHI MASARA.</span></div>
+    <div><b>Voice</b><span>A Hausa phone line for farmers who can't read, with recorded voice notes.</span></div>
+    <div><b>Airtime</b><span>Pays farmers for every report, turning them into a live early-warning network.</span></div>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="band">
+    <span>RUMBU, built by Team LOGI-Q in Kano</span>
+    <span><a href="{{ url_for('login') }}">Log in</a>{% if simulator %} &nbsp; <a href="{{ url_for('simulator') }}">Phone simulator</a>{% endif %}</span>
+  </div>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const screens = {{ screens | tojson }};
+  const lcd = document.getElementById('lcd'), typed = document.getElementById('typed');
+  const keys = [...document.querySelectorAll('#pad span')];
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (still) return;
+  let i = 0;
+  const show = () => {
+    i = (i + 1) % screens.length;
+    const s = screens[i];
+    const key = keys.find(k => k.dataset.k === s.key);
+    typed.textContent = s.key || ' ';
+    if (key) key.classList.add('hit');
+    setTimeout(() => {
+      if (key) key.classList.remove('hit');
+      lcd.classList.add('fade');
+      setTimeout(() => { lcd.textContent = s.text; typed.textContent = ' '; lcd.classList.remove('fade'); }, 250);
+    }, 550);
+  };
+  setInterval(show, 2600);
+})();
+</script>
+{% endblock %}

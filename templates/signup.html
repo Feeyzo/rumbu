@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Create a buyer account · RUMBU{% endblock %}
+{% block body %}
+<div class="auth">
+  <div>
+    <h1>Create a buyer account</h1>
+    {% with msgs = get_flashed_messages() %}{% for m in msgs %}<div class="flash" role="alert">{{ m }}</div>{% endfor %}{% endwith %}
+    <form method="post">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="name">Your name</label><input id="name" name="name" required autocomplete="name"></div>
+      <div class="field"><label for="org">Business name <small>(shown to farmers)</small></label><input id="org" name="org" required autocomplete="organization"></div>
+      <div class="field"><label for="phone">Phone number <small>(farmers will call you on this)</small></label><input id="phone" name="phone" type="tel" required placeholder="0803 123 4567" autocomplete="tel"></div>
+      <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email"></div>
+      <div class="field"><label for="password">Password <small>(at least 8 characters)</small></label><input id="password" name="password" type="password" minlength="8" required autocomplete="new-password"></div>
+      <button class="btn block">Create account</button>
+    </form>
+    <p style="margin-top:18px;color:var(--muted)">Already have an account? <a href="{{ url_for('login') }}">Log in</a>.</p>
+  </div>
+  <div class="side">
+    <h2>Buy straight from farmers</h2>
+    <ul>
+      <li>Post a request with crop, bags and your highest price per bag.</li>
+      <li>Farmers who list matching produce get your number by SMS, and you get theirs.</li>
+      <li>Or browse what's listed today and take it in one click.</li>
+    </ul>
+    <p>RUMBU charges a small commission on each matched sale. There's no fee to sign up.</p>
+  </div>
+</div>
+{% endblock %}

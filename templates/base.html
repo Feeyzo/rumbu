@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}RUMBU{% endblock %}</title>
+<meta name="description" content="Hausa-first USSD, SMS and voice service that helps smallholder farmers cut post-harvest losses and sell at fair prices.">
+<link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<header class="bar">
+  <div class="bar-in">
+    <a class="brand" href="{{ url_for('landing') }}" aria-label="RUMBU home">{% include "_granary.svg" %}RUMBU</a>
+    <nav aria-label="Main">
+      {% set ep = request.endpoint %}
+      {% if not user %}
+        <a href="{{ url_for('landing') }}#how" >How it works</a>
+        <a href="{{ url_for('landing') }}#buyers">For buyers</a>
+        <a href="{{ url_for('landing') }}#partners">For partners</a>
+        {% if simulator %}<a href="{{ url_for('simulator') }}" class="{{ 'on' if ep == 'simulator' }}">Try the phone</a>{% endif %}
+        <a href="{{ url_for('login') }}" class="{{ 'on' if ep == 'login' }}">Log in</a>
+      {% else %}
+        {% if user.role in ('buyer', 'admin') %}<a href="{{ url_for('buyer_portal') }}" class="{{ 'on' if ep == 'buyer_portal' }}">Buy produce</a>{% endif %}
+        {% if user.role in ('partner', 'admin') %}<a href="{{ url_for('partner_insights') }}" class="{{ 'on' if ep == 'partner_insights' }}">Insights</a>{% endif %}
+        {% if user.role == 'admin' %}
+          <a href="{{ url_for('admin_console') }}" class="{{ 'on' if ep == 'admin_console' }}">Operations</a>
+          <a href="{{ url_for('admin_users') }}" class="{{ 'on' if ep == 'admin_users' }}">People</a>
+        {% endif %}
+        {% if simulator %}<a href="{{ url_for('simulator') }}" class="{{ 'on' if ep == 'simulator' }}">Phone simulator</a>{% endif %}
+        {% if user.role == 'admin' %}<span class="mode {{ 'live' if live else 'dry' }}" title="{{ 'Messages and airtime go out through Africa\'s Talking' if live else 'Nothing is sent; messages only show in the feed' }}">{{ 'Live' if live else 'Dry run' }}</span>{% endif %}
+        <span class="who">{{ user.org or user.name }}</span>
+        <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">Log out</button></form>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+{% block body %}
+<main class="page">
+  {% with msgs = get_flashed_messages() %}{% for m in msgs %}<div class="flash" role="status">{{ m }}</div>{% endfor %}{% endwith %}
+  {% block content %}{% endblock %}
+</main>
+{% endblock %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

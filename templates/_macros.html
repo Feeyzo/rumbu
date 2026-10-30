@@ -1,0 +1,45 @@
+{% macro heatmap(heat, maxheat) %}
+<div class="tbl">
+<table class="heat">
+  <tr><th>LGA</th>{% for k, ha, en in PROBLEMS %}<th>{{ en }}</th>{% endfor %}<th>Voice notes</th><th class="num">Total</th></tr>
+  {% for k, name, lat, lon in LGAS %}
+  {% set row = heat.get(k, {}) %}
+  <tr><td>{{ name }}</td>
+    {% for pk in PROBLEMS | map('first') | list + ['voice_note'] %}
+      {% set n = row.get(pk, 0) %}
+      <td class="cell" style="background: rgba(35,53,107,{{ '%.2f' % (0.08 + n / maxheat * 0.82) if n else 0 }}); color: {{ '#fff' if n / maxheat > 0.45 else 'inherit' }}">{{ n or '' }}</td>
+    {% endfor %}
+    <td class="num"><b>{{ row.values() | sum or '' }}</b></td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endmacro %}
+
+{% macro crop_bars(by_crop) %}
+{% set top = (by_crop[0].bags if by_crop else 1) or 1 %}
+{% for c in by_crop %}
+<div class="barrow"><span>{{ crop_name(c.crop, 'en') }}</span><div class="bar-track"><div class="bar-fill" style="width: {{ (c.bags or 0) / top * 100 }}%"></div></div><span class="num" style="text-align:right">{{ c.bags }} bags</span></div>
+{% else %}<p class="empty">No reports yet.</p>{% endfor %}
+{% endmacro %}
+
+{% macro week_chart(weeks) %}
+{% set top = (weeks | map(attribute='n') | max) or 1 %}
+<div class="weeks" role="img" aria-label="Reports per week">
+  {% for w in weeks %}
+  <div class="col"><b>{{ w.n }}</b><i style="height: {{ (w.n / top * 100) | round }}%"></i><span>wk of {{ w.label }}</span></div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro price_table(prices) %}
+<table>
+  <tr><th>Crop</th><th>Market</th><th class="num">Per bag</th><th class="num">30 days</th></tr>
+  {% for p in prices %}
+  <tr><td>{{ crop_name(p.crop, 'en') }}</td><td>{{ p.market }}</td><td class="num">{{ p.price | naira }}</td>
+    <td class="num {{ 'up' if p.pct > 0 else 'down' if p.pct < 0 }}">{{ '+' if p.pct > 0 }}{{ p.pct }}%</td></tr>
+  {% endfor %}
+</table>
+{% endmacro %}
+
+{% macro csrf_field() %}<input type="hidden" name="csrf" value="{{ csrf }}">{% endmacro %}
