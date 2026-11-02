@@ -232,3 +232,36 @@ def test_simulator_voice_note_reaches_admin():
 def io_bytes(b):
     import io
     return io.BytesIO(b)
+
+
+def test_live_mode_answers_ussd_without_waiting(monkeypatch):
+    """With real credentials, SMS and airtime go out in the background and failures are recorded."""
+    import time
+    from rumbu import at
+    sent = {"sms": [], "air": []}
+
+    class SlowSMS:
+        def send(self, message, phones, sender_id=None):
+            time.sleep(0.5)
+            sent["sms"].append(phones)
+            return {"SMSMessageData": {"Recipients": [{"status": "Success"}]}}
+
+    class FailingAirtime:
+        def send(self, **kw):
+            time.sleep(0.5)
+            sent["air"].append(kw)
+            return {"errorMessage": "Insufficient Credit", "responses": []}
+
+    monkeypatch.setenv("AT_USERNAME", "sandbox")
+    monkeypatch.setenv("AT_API_KEY", "x")
+    monkeypatch.setattr(at, "_sms", SlowSMS())
+    monkeypatch.setattr(at, "_airtime", FailingAirtime())
+    phone = "+2348077770001"
+    db.add_farmer(phone, "Live", "gaya", "en")
+    start = time.time()
+    out = dial("3*1*2*4", phone=phone)
+    assert time.time() - start < 0.4 and out.startswith("END")
+    time.sleep(1.2)
+    assert sent["sms"] and sent["air"]
+    assert db.q("SELECT reward FROM reports WHERE phone=? ORDER BY id DESC", (phone,), one=True)["reward"] == 0
+    assert db.q("SELECT status FROM messages WHERE phone=? AND channel='airtime'", (phone,), one=True)["status"].startswith("error")

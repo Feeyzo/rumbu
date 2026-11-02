@@ -104,9 +104,7 @@ def create_report(phone, crop, problem, bags=0, channel="ussd", note="", recordi
         (phone, farmer["lga"], crop, problem, bags, channel, note, recording_url, reward, db.now()),
     )
     if reward:
-        if at.send_airtime(phone, reward).startswith("error"):
-            db.ex("UPDATE reports SET reward=0 WHERE id=?", (rid,))
-            reward = 0
+        at.send_airtime(phone, reward, on_fail=lambda: db.ex("UPDATE reports SET reward=0 WHERE id=?", (rid,)))
     if problem in ADVICE:
         at.send_sms(phone, t("advice_sms", lang, crop=crop_name(crop, lang) if crop else "RUMBU",
                              advice=ADVICE[problem][lang]))
