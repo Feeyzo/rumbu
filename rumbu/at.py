@@ -92,6 +92,22 @@ def send_sms(phones, message):
     _background(work)
 
 
+def test_sms(phone, message="RUMBU test message. Idan ka ga wannan, SMS yana aiki."):
+    """Send one SMS synchronously and return (status, raw response) for troubleshooting."""
+    phone = db.normalize_phone(phone)
+    if not live():
+        return "dry-run", "AT_USERNAME and AT_API_KEY are not set on the server, so nothing is sent."
+    try:
+        _init()
+        sender = os.environ.get("AT_SENDER_ID") or None
+        resp = _sms.send(message, [phone], sender_id=sender)
+        status = _sms_status(resp)
+    except Exception as e:
+        resp, status = repr(e), f"error: {e}"[:120]
+    db.log_message("out", "sms", phone, message, status)
+    return status, str(resp)[:600]
+
+
 def send_airtime(phone, amount, currency="NGN", on_fail=None):
     """Send an airtime reward. `on_fail` runs if Africa's Talking rejects it."""
     phone = db.normalize_phone(phone)

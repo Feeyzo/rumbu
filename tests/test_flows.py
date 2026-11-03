@@ -265,3 +265,9 @@ def test_live_mode_answers_ussd_without_waiting(monkeypatch):
     assert sent["sms"] and sent["air"]
     assert db.q("SELECT reward FROM reports WHERE phone=? ORDER BY id DESC", (phone,), one=True)["reward"] == 0
     assert db.q("SELECT status FROM messages WHERE phone=? AND channel='airtime'", (phone,), one=True)["status"].startswith("error")
+
+
+def test_admin_test_sms_dry_run():
+    admin = logged_in("admin@rumbu.ng")
+    r = admin.post("/admin/test-sms", data={"phone": "08031110001", "csrf": csrf(admin)}, follow_redirects=True)
+    assert b"dry-run" in r.data and b"not set" in r.data

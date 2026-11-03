@@ -89,6 +89,15 @@
     <section class="panel actions">
       <h2 style="margin-bottom:14px">Actions</h2>
       <div>
+        <h3>Send a test SMS</h3>
+        <form class="row" method="post" action="{{ url_for('admin_test_sms') }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input name="phone" placeholder="+2348031110001" required aria-label="Phone number">
+          <button class="btn">Send test</button>
+        </form>
+        <p class="sub" style="margin:6px 0 0">Shows Africa's Talking's exact reply at the top of the page.</p>
+      </div>
+      <div>
         <h3>Send a rain alert by SMS</h3>
         <form class="row" method="post" action="{{ url_for('admin_alert') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">

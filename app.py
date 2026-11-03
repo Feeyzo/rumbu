@@ -288,6 +288,17 @@ def api_feed():
     return jsonify(stats=stats(), messages=msgs)
 
 
+@app.post("/admin/test-sms")
+@auth.require("admin")
+def admin_test_sms():
+    phone = request.form.get("phone", "")
+    status, raw = at.test_sms(phone)
+    user = os.environ.get("AT_USERNAME", "(not set)")
+    flash(f"Test SMS to {db.normalize_phone(phone)}: {status}. Username: {user}. "
+          f"Sender ID: {os.environ.get('AT_SENDER_ID') or '(none)'}. Africa's Talking replied: {raw}")
+    return redirect(url_for("admin_console"))
+
+
 @app.post("/admin/alert")
 @auth.require("admin")
 def admin_alert():
