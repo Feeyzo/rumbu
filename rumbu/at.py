@@ -37,6 +37,37 @@ def _init():
             _airtime = africastalking.Airtime
 
 
+TIMEOUT = (15, 30)  # (connect, read) seconds; the SDK default of 3s to connect is too tight from some hosts
+RETRIES = 3
+
+
+def _err(e):
+    """The useful part of a requests error: the root cause, not just 'Max retries exceeded'."""
+    cause = e
+    for attr in ("reason", "__cause__", "__context__"):
+        inner = getattr(cause, attr, None)
+        if inner is not None:
+            cause = inner
+    text = f"{type(e).__name__}: {e}"
+    if cause is not e:
+        text += f" | cause: {type(cause).__name__}: {cause}"
+    return "error: " + text[:400]
+
+
+def _call(fn, **kw):
+    """Call the API with a longer timeout, retrying network errors (not API rejections)."""
+    import time
+    last = None
+    for attempt in range(RETRIES):
+        try:
+            return fn(timeout=TIMEOUT, **kw)
+        except Exception as e:  # network-level failure; the API's own errors come back in the body
+            last = e
+            log.warning("Africa's Talking call failed (attempt %s): %s", attempt + 1, e)
+            time.sleep(2 * (attempt + 1))
+    raise last
+
+
 def _background(fn):
     t = threading.Thread(target=fn, daemon=True)
     t.start()
@@ -82,10 +113,10 @@ def send_sms(phones, message):
         try:
             _init()
             sender = os.environ.get("AT_SENDER_ID") or None
-            status = _sms_status(_sms.send(message, phones, sender_id=sender))
+            status = _sms_status(_call(_sms.send, message=message, recipients=phones, sender_id=sender))
         except Exception as e:
             log.exception("SMS failed")
-            status = f"error: {e}"[:120]
+            status = _err(e)
         for p in phones:
             db.log_message("out", "sms", p, message, status)
 
@@ -100,10 +131,11 @@ def test_sms(phone, message="RUMBU test message. Idan ka ga wannan, SMS yana aik
     try:
         _init()
         sender = os.environ.get("AT_SENDER_ID") or None
-        resp = _sms.send(message, [phone], sender_id=sender)
+        resp = _call(_sms.send, message=message, recipients=[phone], sender_id=sender)
         status = _sms_status(resp)
     except Exception as e:
-        resp, status = repr(e), f"error: {e}"[:120]
+        status = _err(e)
+        resp = status
     db.log_message("out", "sms", phone, message, status)
     return status, str(resp)[:600]
 
@@ -118,10 +150,10 @@ def send_airtime(phone, amount, currency="NGN", on_fail=None):
     def work():
         try:
             _init()
-            status = _airtime_status(_airtime.send(phone_number=phone, amount=amount, currency_code=currency))
+            status = _airtime_status(_call(_airtime.send, phone_number=phone, amount=amount, currency_code=currency))
         except Exception as e:
             log.exception("Airtime failed")
-            status = f"error: {e}"[:120]
+            status = _err(e)
         db.log_message("out", "airtime", phone, f"{currency} {amount} airtime reward", status)
         if status.startswith("error") and on_fail:
             on_fail()

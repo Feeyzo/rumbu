@@ -241,13 +241,13 @@ def test_live_mode_answers_ussd_without_waiting(monkeypatch):
     sent = {"sms": [], "air": []}
 
     class SlowSMS:
-        def send(self, message, phones, sender_id=None):
+        def send(self, message, recipients, sender_id=None, timeout=None):
             time.sleep(0.5)
-            sent["sms"].append(phones)
+            sent["sms"].append(recipients)
             return {"SMSMessageData": {"Recipients": [{"status": "Success"}]}}
 
     class FailingAirtime:
-        def send(self, **kw):
+        def send(self, timeout=None, **kw):
             time.sleep(0.5)
             sent["air"].append(kw)
             return {"errorMessage": "Insufficient Credit", "responses": []}
@@ -271,3 +271,22 @@ def test_admin_test_sms_dry_run():
     admin = logged_in("admin@rumbu.ng")
     r = admin.post("/admin/test-sms", data={"phone": "08031110001", "csrf": csrf(admin)}, follow_redirects=True)
     assert b"dry-run" in r.data and b"not set" in r.data
+
+
+def test_network_errors_are_retried_and_explained(monkeypatch):
+    from rumbu import at
+    calls = []
+
+    class Flaky:
+        def send(self, timeout=None, **kw):
+            calls.append(timeout)
+            if len(calls) < 3:
+                raise ConnectionError("Max retries exceeded")
+            return {"SMSMessageData": {"Recipients": [{"status": "Success"}]}}
+
+    monkeypatch.setenv("AT_USERNAME", "sandbox")
+    monkeypatch.setenv("AT_API_KEY", "x")
+    monkeypatch.setattr(at, "_sms", Flaky())
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    status, _ = at.test_sms("08031110002")
+    assert status == "sent" and len(calls) == 3 and calls[0] == at.TIMEOUT
