@@ -12,7 +12,7 @@ from . import db
 DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "rumbu2026")
 DEMO_USERS = [
     # email, name, org, phone, role
-    ("admin@rumbu.ng", "RUMBU Ops", "RUMBU / LOGI-Q", "+2348000000000", "admin"),
+    ("admin@rumbu.ng", "RUMBU Ops", "RUMBU / GonaTech", "+2348000000000", "admin"),
     ("partner@rumbu.ng", "Fatima Yusuf", "Kano State Ministry of Agriculture (demo)", "+2348000000010", "partner"),
     ("buyer@rumbu.ng", "Dawanau Grains Ltd", "Dawanau Grains Ltd", "+2348090000001", "buyer"),
 ]

@@ -2,7 +2,7 @@
 
 **Hausa-first USSD, SMS & voice platform on Africa's Talking that helps smallholder farmers cut post-harvest losses and sell at fair prices, no smartphone needed.**
 
-*Rumbu* is Hausa for granary. Built by Team LOGI-Q for the Africa's Talking Agriculture & Food Security Hackathon.
+*Rumbu* is Hausa for granary. Built by GonaTech for the Africa's Talking Agriculture & Food Security Hackathon.
 
 ## The problem
 
